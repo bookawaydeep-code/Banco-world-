@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{margin:0;background:#0a1018;display:flex;gap:30px;align-items:center;justify-content:center;height:100vh}
+.cell{display:flex;flex-direction:column;align-items:center;gap:10px;color:#3dffa0;font-family:monospace}
+</style></head><body>
+  <div class="cell">
+    <svg viewBox="0 0 240 210" width="480" height="420">
+      <defs>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.5" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <radialGradient id="eye" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#eaffd0"/><stop offset="40%" stop-color="#7dff3d"/><stop offset="100%" stop-color="#1f8a00"/>
+        </radialGradient>
+        <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#0c2a24"/><stop offset="100%" stop-color="#05110d"/>
+        </linearGradient>
+      </defs>
+
+      <g filter="url(#glow)" stroke="#39f5b0" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+        <!-- spiky mane / fur behind the head -->
+        <path fill="url(#body)" d="
+          M158 52 L170 28 L176 52 L194 38 L192 64 L212 60 L200 82 L220 88 L202 104
+          L218 126 L196 122 L202 148 L180 134 L178 160 L158 140 L148 164 L142 134
+          C162 120 168 88 158 60 Z"/>
+
+        <!-- ear -->
+        <path fill="url(#body)" d="M126 60 L132 26 L154 50 C148 60 138 64 130 62 Z"/>
+
+        <!-- main head + shorter wolf muzzle, snarling -->
+        <path fill="url(#body)" d="
+          M128 62
+          C112 56 96 58 82 66
+          C70 72 58 80 48 90
+          L42 98 L52 104 L66 100
+          C61 109 59 116 64 120
+          L92 116
+          C103 119 115 120 125 116
+          C130 128 139 137 152 141
+          C139 146 126 143 115 136
+          C124 150 140 158 158 157
+          C176 156 190 143 193 124
+          C197 107 194 86 186 70
+          C179 58 150 54 128 62 Z"/>
+
+        <!-- muzzle top neon highlight -->
+        <path fill="none" stroke="#7dffd0" stroke-width="2.6" d="M50 92 C70 80 92 72 114 68"/>
+        <!-- brow ridge -->
+        <path fill="none" stroke="#7dffd0" stroke-width="2.6" d="M118 70 C132 66 146 70 158 80"/>
+        <!-- cheek fur stroke -->
+        <path fill="none" stroke="#39f5b0" stroke-width="1.6" d="M150 120 C162 116 170 104 170 92"/>
+      </g>
+
+      <!-- nose -->
+      <path d="M40 96 C44 92 52 92 56 96 C54 102 46 104 42 102 Z" fill="#06140f" stroke="#39f5b0" stroke-width="1.6"/>
+
+      <!-- angry glowing eye -->
+      <g filter="url(#glow)">
+        <ellipse cx="116" cy="86" rx="9" ry="5.6" fill="url(#eye)" transform="rotate(-16 116 86)"/>
+        <ellipse cx="116" cy="86" rx="3" ry="5" fill="#06250a" transform="rotate(-16 116 86)"/>
+      </g>
+      <!-- angry brow shadow over the eye -->
+      <path d="M104 78 L134 73 L132 80 L106 84 Z" fill="#05110d"/>
+
+      <!-- bared fangs (upper hang down, lower point up), aligned to the snarl -->
+      <g fill="#f4fff6" stroke="#bfeede" stroke-width="0.6">
+        <path d="M58 100 L62 116 L66 100 Z"/>
+        <path d="M70 102 L74 118 L78 102 Z"/>
+        <path d="M82 103 L85 116 L89 103 Z"/>
+        <path d="M94 104 L96 114 L100 104 Z"/>
+        <path d="M74 134 L78 120 L82 134 Z"/>
+        <path d="M88 136 L91 122 L95 136 Z"/>
+        <path d="M101 135 L103 124 L107 135 Z"/>
+      </g>
+    </svg>
+    <span>fierce wolf v2</span>
+  </div>
+</body></html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SoundifiedLoader — Preview (FX)</title>
+<style>
+  :root{
+    --green:#3dffa0; --green-deep:#22e07a;
+    --cyan:#00d4ff; --indigo:#818cf8; --purple:#9333ea;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#040407;overflow:hidden;font-family:system-ui,sans-serif;cursor:none}
+
+  .root{position:fixed;inset:0;z-index:9999;overflow:hidden;background:#040407}
+  .root.out{animation:sl-fade-out .72s ease forwards}
+
+  .wall{position:absolute;inset:0;opacity:.55;animation:sl-wall-in 1.2s ease forwards;
+    background:
+      radial-gradient(circle at 18% 30%, rgba(147,51,234,.5), transparent 38%),
+      radial-gradient(circle at 82% 22%, rgba(0,212,255,.45), transparent 40%),
+      radial-gradient(circle at 70% 78%, rgba(129,140,248,.5), transparent 42%),
+      radial-gradient(circle at 30% 80%, rgba(61,255,160,.35), transparent 40%),
+      repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 12px, transparent 12px 24px),
+      #0b0b14;}
+  #bolts{position:absolute;inset:0;width:100%;height:100%;opacity:.55;pointer-events:none;mix-blend-mode:screen}
+  .vignette{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%, rgba(10,12,24,.25) 0%, rgba(4,4,8,.78) 60%, rgba(2,2,4,.96) 100%)}
+  .scan{position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay;opacity:.18;background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.25) 0 1px, transparent 1px 3px);animation:sl-scan 8s linear infinite}
+  #embers,#paws,#fx{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  #paws{z-index:5}
+
+  .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+  .wm-wrap{position:relative;display:flex;align-items:center;justify-content:center}
+  .splatter{position:absolute;width:min(680px,92vw);height:280px;pointer-events:none;mix-blend-mode:screen;opacity:.8;animation:sl-splat-in 1s cubic-bezier(.2,.8,.2,1) forwards;
+    background:
+      radial-gradient(circle at 30% 50%, rgba(0,212,255,.55), transparent 22%),
+      radial-gradient(circle at 55% 35%, rgba(147,51,234,.55), transparent 20%),
+      radial-gradient(circle at 70% 60%, rgba(129,140,248,.55), transparent 24%),
+      radial-gradient(circle at 45% 70%, rgba(61,255,160,.5), transparent 18%);
+    filter:saturate(1.2) blur(2px);}
+  h1{position:relative;margin:0;font-family:'Bangers','Arial Black',system-ui,sans-serif;font-size:clamp(48px,11vw,132px);line-height:.9;letter-spacing:.04em;font-weight:800;transform:skewX(-4deg);
+    background:linear-gradient(180deg,#d9f6ff 0%,var(--cyan) 32%,var(--indigo) 64%,var(--purple) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 6px rgba(0,212,255,.85)) drop-shadow(0 0 22px rgba(129,140,248,.6)) drop-shadow(0 0 40px rgba(147,51,234,.5));
+    animation:sl-word-in .9s cubic-bezier(.2,.8,.2,1) both, sl-flicker 3.4s ease-in-out 1s infinite;user-select:none}
+  .tagline{font-family:'Permanent Marker',cursive;color:rgba(180,200,255,.7);font-size:clamp(12px,2.4vw,18px);letter-spacing:.18em;margin-top:10px;text-transform:uppercase}
+
+  .zone{width:min(420px,80vw);margin-top:44px}
+  .mono{font-family:'Space Mono',ui-monospace,monospace}
+  .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .step{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(180,200,255,.75)}
+  .pct{font-size:14px;font-weight:700;color:var(--cyan)}
+  .track{position:relative;height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+  .fill{position:absolute;inset:0;width:0;border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--indigo) 55%,var(--purple));box-shadow:0 0 12px rgba(0,212,255,.7);transition:width .2s linear}
+
+  .badge-col{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .badge-box{position:relative;width:76px;height:76px;animation:sl-badge-pop .5s cubic-bezier(.2,.8,.2,1) both}
+  .ring{position:absolute;inset:0;border-radius:999px;border:2px solid var(--green-deep);animation:sl-ring .8s ease-out .25s forwards}
+  .disc{position:absolute;inset:0;border-radius:999px;overflow:hidden;background:radial-gradient(circle at 50% 40%, rgba(34,224,122,.22), rgba(8,20,14,.6));border:2px solid rgba(34,224,122,.55);box-shadow:0 0 24px rgba(34,224,122,.45), inset 0 0 16px rgba(34,224,122,.25)}
+  .disc svg{position:absolute;inset:0}
+  .check{fill:none;stroke:var(--green);stroke-width:6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px rgba(61,255,160,.9));stroke-dasharray:60;stroke-dashoffset:60;animation:sl-check .5s ease .3s forwards, sl-check-rip .4s ease 1s forwards}
+  .rip{fill:none;stroke:#eafff1;stroke-width:2.5;stroke-linecap:round;opacity:0;transform-origin:center;animation:sl-rip-flash .5s ease 1s forwards}
+  .sweep{position:absolute;top:-10%;left:-15%;width:10%;height:120%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.95),transparent);filter:blur(1px);transform:skewX(-18deg);animation:sl-sweep .7s cubic-bezier(.4,0,.2,1) forwards}
+  .note-push{position:absolute;inset:0;display:grid;place-items:center;animation:sl-note-push .8s cubic-bezier(.5,0,.7,1) 1.55s forwards}
+  .note-push svg{opacity:0;filter:drop-shadow(0 0 8px rgba(61,255,160,.9));animation:sl-note-form .5s cubic-bezier(.2,1.4,.4,1) 1.1s forwards}
+  .wave{position:absolute;top:0;bottom:0;left:-46px;width:44px;display:flex;align-items:center;justify-content:center;gap:3px;opacity:0;animation:sl-wave-push .8s ease-out 1.5s forwards}
+  .wave span{display:block;width:3px;border-radius:3px;background:linear-gradient(#7dffc0,var(--green-deep));box-shadow:0 0 8px rgba(61,255,160,.8);animation:sl-eq .5s ease-in-out infinite}
+  .spark{position:absolute;top:50%;left:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:999px;background:var(--green);box-shadow:0 0 8px var(--green);opacity:0;animation:sl-spark .7s ease-out .25s forwards}
+  .ready{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--green)}
+
+  /* wolf */
+  #wolf{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:150px;height:124px;pointer-events:none}
+  #wolf svg{transform-origin:60% 70%}
+  #wolf.howl svg{animation:sl-wolf-howl .95s ease-in-out}
+  .howlring{position:absolute;top:54px;left:8px;width:14px;height:14px;border-radius:999px;border:2px solid var(--green);opacity:0}
+  #wolf.howl .howlring{animation:sl-howlring .9s ease-out forwards}
+  #wolf.howl .howlring:nth-child(2){animation-delay:.14s}
+  #wolf.howl .howlring:nth-child(3){animation-delay:.28s}
+
+  .ember{position:absolute;bottom:-10px;border-radius:999px}
+  .paw{position:absolute;animation:sl-paw .95s ease-out forwards}
+  #cursor{position:absolute;top:0;left:0;will-change:transform;filter:drop-shadow(0 0 6px var(--green))}
+
+  @keyframes sl-fade-out{to{opacity:0;transform:scale(1.04);pointer-events:none}}
+  @keyframes sl-wall-in{from{opacity:0;transform:scale(1.12)}to{opacity:.55;transform:scale(1.04)}}
+  @keyframes sl-splat-in{0%{opacity:0;transform:scale(.6) rotate(-6deg)}60%{opacity:.9}100%{opacity:.8;transform:scale(1) rotate(0)}}
+  @keyframes sl-word-in{0%{opacity:0;transform:translateY(26px) scale(.92) skewX(-6deg);filter:blur(8px)}100%{opacity:1;transform:translateY(0) scale(1) skewX(-4deg);filter:blur(0)}}
+  @keyframes sl-flicker{0%,100%{opacity:1}92%{opacity:1}94%{opacity:.55}96%{opacity:1}97%{opacity:.7}98%{opacity:1}}
+  @keyframes sl-sweep{0%{left:-15%;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:115%;opacity:0}}
+  @keyframes sl-check{to{stroke-dashoffset:0}}
+  @keyframes sl-badge-pop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.08);opacity:1}100%{transform:scale(1);opacity:1}}
+  @keyframes sl-ring{0%{transform:scale(.8);opacity:.7}100%{transform:scale(1.7);opacity:0}}
+  @keyframes sl-check-rip{0%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(-7px) scale(1.12)}}
+  @keyframes sl-rip-flash{0%{opacity:0;transform:scaleY(.3)}45%{opacity:1;transform:scaleY(1)}100%{opacity:0;transform:scaleY(1.4)}}
+  @keyframes sl-note-form{0%{opacity:0;transform:scale(.15) rotate(-30deg)}70%{opacity:1;transform:scale(1.15) rotate(0)}100%{opacity:1;transform:scale(1) rotate(0)}}
+  @keyframes sl-note-push{0%{transform:translateX(0) rotate(0);opacity:1}55%{transform:translateX(80px) rotate(14deg);opacity:1}100%{transform:translateX(190px) rotate(24deg);opacity:0}}
+  @keyframes sl-wave-push{0%{transform:translateX(-80px) scaleX(.5);opacity:0}30%{opacity:1}60%{transform:translateX(4px) scaleX(1);opacity:1}100%{transform:translateX(120px) scaleX(1);opacity:0}}
+  @keyframes sl-eq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+  @keyframes sl-scan{from{background-position:0 0}to{background-position:0 60px}}
+  @keyframes sl-ember{0%{transform:translate(0,0) scale(1);opacity:0}12%{opacity:.9}100%{transform:translate(var(--drift),-100vh) scale(.4);opacity:0}}
+  @keyframes sl-spark{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--sx),var(--sy)) scale(.2);opacity:0}}
+  @keyframes sl-howlring{0%{transform:scale(.3);opacity:.9}100%{transform:scale(3.4);opacity:0}}
+  @keyframes sl-wolf-howl{0%{transform:translateY(0) rotate(0)}30%{transform:translateY(-3px) rotate(-8deg)}60%{transform:translateY(-3px) rotate(-8deg)}100%{transform:translateY(0) rotate(0)}}
+  @keyframes sl-paw{0%{opacity:0;transform:translate(-50%,-50%) rotate(var(--r,0deg)) scale(.4)}18%{opacity:.85}100%{opacity:0;transform:translate(-50%,-50%) rotate(var(--r,0deg)) scale(1)}}
+</style>
+</head>
+<body>
+  <div class="root" id="root">
+    <div class="wall"></div>
+    <canvas id="bolts"></canvas>
+    <div class="vignette"></div>
+    <div id="embers"></div>
+
+    <div class="center">
+      <div class="wm-wrap"><div class="splatter"></div><h1>SOUNDIFIED</h1></div>
+      <div class="tagline">One Studio · Every Tool</div>
+      <div class="zone" id="zone">
+        <div id="loading">
+          <div class="row"><span class="step mono" id="step">Booting audio engine</span><span class="pct mono" id="pct">0%</span></div>
+          <div class="track"><div class="fill" id="fill"></div></div>
+        </div>
+      </div>
+      <div id="wolf">
+        <span class="howlring"></span><span class="howlring"></span><span class="howlring"></span>
+        <svg viewBox="0 0 220 180" width="150" height="124">
+          <defs>
+            <filter id="wolfGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <radialGradient id="wolfEye" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#eaffd0"/><stop offset="40%" stop-color="#7dff3d"/><stop offset="100%" stop-color="#1f8a00"/>
+            </radialGradient>
+            <linearGradient id="wolfBody" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#0c2a24"/><stop offset="100%" stop-color="#05110d"/>
+            </linearGradient>
+          </defs>
+          <g filter="url(#wolfGlow)" stroke="#39f5b0" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+            <path fill="url(#wolfBody)" d="M150 22 L160 4 L166 26 L182 14 L180 38 L198 34 L188 56 L206 60 L190 76 L204 96 L184 94 L190 118 L170 106 L168 130 L150 112 L140 134 L132 108 C150 96 156 70 150 44 Z"/>
+            <path fill="url(#wolfBody)" d="M120 40 L126 8 L146 30 C140 40 132 44 124 44 Z"/>
+            <path fill="url(#wolfBody)" d="M120 42 C108 36 92 38 78 46 C60 54 44 60 24 70 L14 78 L22 84 L40 82 C36 90 34 96 38 100 L60 96 C70 98 82 100 92 98 C96 108 104 116 116 120 C104 124 92 122 82 116 C90 128 104 136 120 136 C136 136 150 126 154 110 C158 96 156 78 150 64 C146 54 134 46 120 42 Z"/>
+            <path fill="none" stroke="#7dffd0" stroke-width="2.5" d="M22 72 C44 62 64 56 88 50"/>
+            <path fill="none" stroke="#7dffd0" stroke-width="2.5" d="M96 56 C108 52 120 54 132 62"/>
+          </g>
+          <circle cx="17" cy="76" r="5" fill="#06140f" stroke="#39f5b0" stroke-width="1.5"/>
+          <g filter="url(#wolfGlow)">
+            <ellipse cx="96" cy="68" rx="9" ry="5.5" fill="url(#wolfEye)" transform="rotate(-18 96 68)"/>
+            <ellipse cx="96" cy="68" rx="3" ry="5" fill="#06250a" transform="rotate(-18 96 68)"/>
+          </g>
+          <path d="M84 60 L112 56 L110 62 L86 66 Z" fill="#05110d"/>
+          <g fill="#f4fff6" stroke="#bfeede" stroke-width="0.6">
+            <path d="M30 82 L34 96 L38 82 Z"/><path d="M42 84 L46 98 L50 84 Z"/><path d="M54 85 L57 95 L60 85 Z"/><path d="M64 86 L66 93 L69 86 Z"/>
+            <path d="M44 112 L48 100 L52 112 Z"/><path d="M56 114 L59 102 L63 114 Z"/><path d="M68 114 L70 104 L74 114 Z"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <div class="scan"></div>
+    <div id="paws">
+      <div id="cursor">
+        <svg viewBox="0 0 24 24" width="26" height="26" style="transform:translate(-50%,-50%)">
+          <g fill="#3dffa0">
+            <ellipse cx="12" cy="15" rx="5.2" ry="4.4"/><ellipse cx="6" cy="9" rx="2.1" ry="2.7"/>
+            <ellipse cx="10" cy="6" rx="2.1" ry="2.9"/><ellipse cx="14" cy="6" rx="2.1" ry="2.9"/><ellipse cx="18" cy="9" rx="2.1" ry="2.7"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const STEPS=["Booting audio engine","Loading DSP modules","Warming up the meters","Mixing the colors","Spraying the walls","Soundcheck"];
+  const LOAD=3400, noLoop=location.search.includes('noloop');
+  const fill=document.getElementById('fill'),pct=document.getElementById('pct'),step=document.getElementById('step');
+  const zone=document.getElementById('zone'),root=document.getElementById('root'),wolf=document.getElementById('wolf');
+
+  /* ---------- WebAudio howl ---------- */
+  let actx=null;
+  function howl(s=1){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const n=actx.currentTime;
+    const o=actx.createOscillator(),g=actx.createGain(),lf=actx.createOscillator(),lg=actx.createGain(),b=actx.createBiquadFilter();
+    o.type='sawtooth';o.frequency.setValueAtTime(300+40*s,n);o.frequency.linearRampToValueAtTime(720+60*s,n+.18);o.frequency.linearRampToValueAtTime(540,n+.62);
+    lf.frequency.value=11;lg.gain.value=16;lf.connect(lg).connect(o.frequency);
+    b.type='bandpass';b.frequency.value=820;b.Q.value=6;
+    g.gain.setValueAtTime(0,n);g.gain.linearRampToValueAtTime(.11*s,n+.06);g.gain.exponentialRampToValueAtTime(.0001,n+.7);
+    o.connect(b).connect(g).connect(actx.destination);o.start(n);lf.start(n);o.stop(n+.72);lf.stop(n+.72);}catch(e){}}
+  function doHowl(s){wolf.classList.remove('howl');void wolf.offsetWidth;wolf.classList.add('howl');howl(s);setTimeout(()=>wolf.classList.remove('howl'),950);}
+
+  /* ---------- electricity ---------- */
+  const cv=document.getElementById('bolts'),cx=cv.getContext('2d');
+  let W,H,DPR=Math.min(2,devicePixelRatio||1);
+  function rz(){W=cv.width=innerWidth*DPR;H=cv.height=innerHeight*DPR;}rz();addEventListener('resize',rz);
+  const bolts=[];
+  function jag(x1,y1,x2,y2,n){const p=[],o=38*DPR;for(let i=0;i<=n;i++){const t=i/n,jx=(i&&i<n)?(Math.random()-.5)*o:0,jy=(i&&i<n)?(Math.random()-.5)*o:0;p.push([x1+(x2-x1)*t+jx,y1+(y2-y1)*t+jy]);}return p;}
+  function spawn(){const x1=Math.random()*W,y1=Math.random()*H*.25,x2=x1+(Math.random()-.5)*W*.6,y2=y1+H*(.45+Math.random()*.4),hue=170+Math.random()*130;
+    bolts.push({p:jag(x1,y1,x2,y2,12),life:1,hue,w:(1.2+Math.random()*1.6)*DPR});
+    if(Math.random()<.7){const b=bolts[bolts.length-1].p,k=3+(Math.random()*(b.length-5)|0),[bx,by]=b[k];bolts.push({p:jag(bx,by,bx+(Math.random()-.5)*W*.3,by+H*.25*Math.random(),7),life:.8,hue,w:DPR});}}
+  function eFrame(){cx.clearRect(0,0,W,H);cx.globalCompositeOperation='lighter';cx.lineCap='round';cx.lineJoin='round';
+    if(Math.random()<.06)spawn();
+    for(let i=bolts.length-1;i>=0;i--){const b=bolts[i];b.life-=.07;if(b.life<=0){bolts.splice(i,1);continue;}
+      cx.beginPath();cx.moveTo(b.p[0][0],b.p[0][1]);for(let j=1;j<b.p.length;j++)cx.lineTo(b.p[j][0],b.p[j][1]);
+      const a=Math.max(0,b.life);cx.shadowBlur=16*DPR;cx.shadowColor='hsla('+b.hue+',100%,70%,1)';cx.strokeStyle='hsla('+b.hue+',100%,80%,'+a+')';cx.lineWidth=b.w;cx.stroke();
+      cx.shadowBlur=0;cx.strokeStyle='rgba(255,255,255,'+(a*.7)+')';cx.lineWidth=b.w*.4;cx.stroke();}
+    requestAnimationFrame(eFrame);}
+  eFrame();
+
+  /* ---------- embers ---------- */
+  const eW=document.getElementById('embers');
+  for(let i=0;i<26;i++){const s=document.createElement('span');s.className='ember';const sz=2+Math.random()*4,hue=Math.random()<.5?'var(--cyan)':'var(--green)';
+    s.style.left=(Math.random()*100)+'%';s.style.width=sz+'px';s.style.height=sz+'px';s.style.background=hue;s.style.boxShadow='0 0 8px '+hue;
+    s.style.setProperty('--drift',((Math.random()-.5)*60)+'px');s.style.animation='sl-ember '+(6+Math.random()*8)+'s linear '+(-Math.random()*12)+'s infinite';eW.appendChild(s);}
+
+  /* ---------- paw cursor (with auto-demo path so prints show in capture) ---------- */
+  const cursor=document.getElementById('cursor'),pawLayer=document.getElementById('paws');
+  let last={x:innerWidth/2,y:innerHeight/2},acc=0,side=1,id=0;
+  function moveTo(x,y){cursor.style.transform='translate('+x+'px,'+y+'px)';const dx=x-last.x,dy=y-last.y;acc+=Math.hypot(dx,dy);
+    if(acc>44){acc=0;const rot=Math.atan2(dy,dx)*180/Math.PI+90,off=13*side;side*=-1;
+      const perp=(rot)*Math.PI/180,px=x+Math.cos(perp)*off,py=y+Math.sin(perp)*off;
+      const d=document.createElement('div');d.className='paw';d.style.left=px+'px';d.style.top=py+'px';d.style.setProperty('--r',rot+'deg');
+      d.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20"><g fill="#3dffa0"><ellipse cx="12" cy="15" rx="5" ry="4.2"/><ellipse cx="6" cy="9" rx="2" ry="2.6"/><ellipse cx="10" cy="6" rx="2" ry="2.8"/><ellipse cx="14" cy="6" rx="2" ry="2.8"/><ellipse cx="18" cy="9" rx="2" ry="2.6"/></g></svg>';
+      d.style.transform='translate(-50%,-50%) rotate('+rot+'deg)';pawLayer.appendChild(d);setTimeout(()=>d.remove(),950);}
+    last={x,y};}
+  addEventListener('pointermove',e=>moveTo(e.clientX,e.clientY));
+  // auto demo cursor: figure-eight so paw prints are visible without a real mouse
+  let auto=true;addEventListener('pointermove',()=>auto=false,{once:true});
+  function autoCursor(t){if(auto){const cxp=innerWidth/2+Math.sin(t/700)*innerWidth*0.32,cyp=innerHeight*0.5+Math.sin(t/430)*innerHeight*0.24;moveTo(cxp,cyp);}requestAnimationFrame(autoCursor);}
+  requestAnimationFrame(autoCursor);
+
+  /* ---------- loader timeline ---------- */
+  const badgeHTML=`<div class="badge-col"><div class="badge-box" id="bbox"><div class="ring"></div>
+    <div class="disc"><svg viewBox="0 0 76 76" width="76" height="76"><path class="check" d="M22 39 L33 50 L55 27"/><path class="rip" d="M40 16 L46 30 L36 38 L48 48 L38 60"/></svg><div class="sweep"></div></div>
+    <div class="note-push"><svg viewBox="0 0 40 40" width="40" height="40"><g fill="#3dffa0"><rect x="22" y="6" width="3" height="20" rx="1.5"/><path d="M25 6 C25 6 35 7.5 35 14 C35 16.5 31.5 17.5 30 15.5 C33 15.5 33 12 25 11 Z"/><ellipse cx="17" cy="27" rx="6.5" ry="4.6" transform="rotate(-18 17 27)"/></g></svg></div>
+    <div class="wave"><span style="height:10px"></span><span style="height:22px;animation-delay:.08s"></span><span style="height:34px;animation-delay:.16s"></span><span style="height:22px;animation-delay:.08s"></span><span style="height:10px"></span></div>
+    </div><span class="ready">Ready</span></div>`;
+
+  let lastStep=-1;
+  const start=performance.now();
+  function tick(now){const t=Math.min(1,(now-start)/LOAD),eased=1-Math.pow(1-t,2.2),si=Math.min(STEPS.length-1,Math.floor(eased*STEPS.length));
+    fill.style.width=Math.round(eased*100)+'%';pct.textContent=Math.round(eased*100)+'%';step.textContent=STEPS[si];
+    if(si!==lastStep){lastStep=si;doHowl(.85);}              // wolf howls on each step click-in
+    if(t<1)requestAnimationFrame(tick);else verify();}
+  function verify(){zone.innerHTML=badgeHTML;
+    // spark burst
+    const bb=document.getElementById('bbox');for(let i=0;i<16;i++){const a=i/16*Math.PI*2+Math.random()*.3,dst=40+Math.random()*38,s=document.createElement('span');s.className='spark';s.style.setProperty('--sx',Math.cos(a)*dst+'px');s.style.setProperty('--sy',Math.sin(a)*dst+'px');s.style.animationDelay=(.25+Math.random()*.12)+'s';bb.appendChild(s);}
+    setTimeout(()=>doHowl(1.3),480);                          // big reveal howl
+    if(noLoop)return;
+    setTimeout(()=>root.classList.add('out'),2200);
+    setTimeout(()=>location.reload(),4200);}
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
