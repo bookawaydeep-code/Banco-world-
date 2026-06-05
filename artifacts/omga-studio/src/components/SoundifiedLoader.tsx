@@ -736,22 +736,22 @@ function WolfHowl({ trigger }: { trigger: number }) {
     <div
       style={{
         position: "absolute",
-        bottom: 28,
+        bottom: 18,
         left: "50%",
         transform: "translateX(-50%)",
-        width: 64,
-        height: 64,
+        width: 150,
+        height: 124,
         pointerEvents: "none",
       }}
     >
-      {/* howl sound rings */}
+      {/* howl/snarl sound rings, emitted from the muzzle (left) */}
       {on && [0, 1, 2].map((i) => (
         <span
           key={i}
           style={{
             position: "absolute",
-            top: 6,
-            left: 40,
+            top: 54,
+            left: 8,
             width: 14,
             height: 14,
             borderRadius: 999,
@@ -761,27 +761,64 @@ function WolfHowl({ trigger }: { trigger: number }) {
           }}
         />
       ))}
-      {/* wolf silhouette (tilts up when howling) */}
+      {/* fierce neon wolf — snarls (head bob) on each trigger */}
       <svg
-        viewBox="0 0 64 64"
-        width="64"
-        height="64"
+        viewBox="0 0 220 180"
+        width="150"
+        height="124"
         style={{
-          transformOrigin: "50% 80%",
-          transform: on ? "translateY(-2px)" : "translateY(0)",
+          transformOrigin: "60% 70%",
           animation: on ? "sl-wolf-howl .95s ease-in-out" : undefined,
-          filter: "drop-shadow(0 0 6px rgba(61,255,160,.55))",
         }}
       >
-        <g fill={C.green}>
-          {/* body */}
-          <path d="M14 52 L18 36 L26 40 L38 40 L46 34 L50 52 Z" opacity="0.9" />
-          {/* head tilted up to the sky */}
-          <path d="M40 40 C40 30 44 22 52 16 L58 10 L54 20 L60 18 L52 26 C50 32 50 38 46 40 Z" />
+        <defs>
+          <filter id="wolfGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.2" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <radialGradient id="wolfEye" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#eaffd0" />
+            <stop offset="40%" stopColor="#7dff3d" />
+            <stop offset="100%" stopColor="#1f8a00" />
+          </radialGradient>
+          <linearGradient id="wolfBody" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0c2a24" />
+            <stop offset="100%" stopColor="#05110d" />
+          </linearGradient>
+        </defs>
+
+        <g filter="url(#wolfGlow)" stroke="#39f5b0" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round">
+          {/* spiky mane / fur */}
+          <path fill="url(#wolfBody)" d="M150 22 L160 4 L166 26 L182 14 L180 38 L198 34 L188 56 L206 60 L190 76 L204 96 L184 94 L190 118 L170 106 L168 130 L150 112 L140 134 L132 108 C150 96 156 70 150 44 Z" />
           {/* ear */}
-          <path d="M44 24 L47 16 L50 24 Z" />
-          {/* eye */}
-          <circle cx="47" cy="28" r="1.6" fill="#04140c" />
+          <path fill="url(#wolfBody)" d="M120 40 L126 8 L146 30 C140 40 132 44 124 44 Z" />
+          {/* head + snout, snarling */}
+          <path fill="url(#wolfBody)" d="M120 42 C108 36 92 38 78 46 C60 54 44 60 24 70 L14 78 L22 84 L40 82 C36 90 34 96 38 100 L60 96 C70 98 82 100 92 98 C96 108 104 116 116 120 C104 124 92 122 82 116 C90 128 104 136 120 136 C136 136 150 126 154 110 C158 96 156 78 150 64 C146 54 134 46 120 42 Z" />
+          {/* snout top + brow neon highlights */}
+          <path fill="none" stroke="#7dffd0" strokeWidth="2.5" d="M22 72 C44 62 64 56 88 50" />
+          <path fill="none" stroke="#7dffd0" strokeWidth="2.5" d="M96 56 C108 52 120 54 132 62" />
+        </g>
+
+        {/* nose */}
+        <circle cx="17" cy="76" r="5" fill="#06140f" stroke="#39f5b0" strokeWidth="1.5" />
+
+        {/* angry glowing eye */}
+        <g filter="url(#wolfGlow)">
+          <ellipse cx="96" cy="68" rx="9" ry="5.5" fill="url(#wolfEye)" transform="rotate(-18 96 68)" />
+          <ellipse cx="96" cy="68" rx="3" ry="5" fill="#06250a" transform="rotate(-18 96 68)" />
+        </g>
+        {/* angry brow shadow */}
+        <path d="M84 60 L112 56 L110 62 L86 66 Z" fill="#05110d" />
+
+        {/* bared fangs */}
+        <g fill="#f4fff6" stroke="#bfeede" strokeWidth="0.6">
+          <path d="M30 82 L34 96 L38 82 Z" />
+          <path d="M42 84 L46 98 L50 84 Z" />
+          <path d="M54 85 L57 95 L60 85 Z" />
+          <path d="M64 86 L66 93 L69 86 Z" />
+          <path d="M44 112 L48 100 L52 112 Z" />
+          <path d="M56 114 L59 102 L63 114 Z" />
+          <path d="M68 114 L70 104 L74 114 Z" />
         </g>
       </svg>
     </div>
