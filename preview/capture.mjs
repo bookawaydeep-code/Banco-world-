@@ -5,11 +5,11 @@ import path from "path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const url = "file://" + path.join(__dirname, "soundified-preview.html") + "?noloop=1";
 
-// badge mounts at 3400ms (end of loading). Reload per shot for exact timing.
+// badge mounts at 3400ms. Reload per shot for exact timing.
 const shots = [
-  [1500, "01-loading"],
-  [4150, "02-checkmark"],
-  [4420, "03-rip-flash"],
+  [1500, "01-loading-storm"],   // electricity + paw prints + wolf
+  [2600, "02-wolf-howl"],       // wolf mid-howl on a step click-in
+  [4150, "03-checkmark"],
   [4750, "04-music-note"],
   [5250, "05-wave-shove"],
 ];

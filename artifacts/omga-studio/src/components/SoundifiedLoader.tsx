@@ -10,6 +10,10 @@ import hitSfx from "@/assets/loader-reveal-hit.mp3";
 /*  verify   → checkmark draws, rips into a music note, audio wave    */
 /*             sweeps in and shoves the note out of frame             */
 /*  out      → fade the overlay and call onDone()                     */
+/*                                                                     */
+/*  FX layers (additive): electric storm bg, paw-print cursor,        */
+/*  howling mini wolf on every "click-in", spark burst, embers,       */
+/*  neon scanlines.                                                    */
 /* ------------------------------------------------------------------ */
 
 type Phase = "loading" | "verify" | "out";
@@ -59,10 +63,52 @@ function makeSound(src: string, volume: number) {
   return a;
 }
 
+/* synthesized wolf howl — no asset needed, best-effort (autoplay may block) */
+let _howlCtx: AudioContext | null = null;
+function howl(strength = 1) {
+  try {
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AC) return;
+    _howlCtx = _howlCtx || new AC();
+    const ctx = _howlCtx;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    const band = ctx.createBiquadFilter();
+
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(300 + 40 * strength, now);
+    osc.frequency.linearRampToValueAtTime(720 + 60 * strength, now + 0.18);
+    osc.frequency.linearRampToValueAtTime(540, now + 0.62);
+
+    lfo.frequency.value = 11;          // vibrato = the "howl" warble
+    lfoGain.gain.value = 16;
+    lfo.connect(lfoGain).connect(osc.frequency);
+
+    band.type = "bandpass";
+    band.frequency.value = 820;
+    band.Q.value = 6;
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.11 * strength, now + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+
+    osc.connect(band).connect(gain).connect(ctx.destination);
+    osc.start(now); lfo.start(now);
+    osc.stop(now + 0.72); lfo.stop(now + 0.72);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function SoundifiedLoader({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [progress, setProgress] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
+  const [howlTick, setHowlTick] = useState(0); // bumped every time something "clicks in"
 
   const reduce = useRef(prefersReducedMotion());
   const riser = useRef<HTMLAudioElement | null>(null);
@@ -79,6 +125,7 @@ export function SoundifiedLoader({ onDone }: { onDone: () => void }) {
       if (armed) return;
       armed = true;
       riser.current?.play().catch(() => {});
+      _howlCtx?.resume().catch(() => {});
       detach();
     };
     const detach = () => {
@@ -125,12 +172,23 @@ export function SoundifiedLoader({ onDone }: { onDone: () => void }) {
     return () => cancelAnimationFrame(raf);
   }, [phase]);
 
-  /* ── verify: play the reveal hit, then hold for the rip/note/wave before fading ── */
+  /* ── wolf howls every time a step clicks in ── */
+  useEffect(() => {
+    if (phase !== "loading") return;
+    setHowlTick((h) => h + 1);
+    if (!reduce.current) howl(0.85);
+  }, [stepIdx, phase]);
+
+  /* ── verify: play the reveal hit, big howl, then hold before fading ── */
   useEffect(() => {
     if (phase !== "verify") return;
     const hitAt = reduce.current ? 50 : T.hit;
     const outAt = reduce.current ? T.outReduced : T.out;
-    const a = setTimeout(() => hit.current?.play().catch(() => {}), hitAt);
+    const a = setTimeout(() => {
+      hit.current?.play().catch(() => {});
+      setHowlTick((h) => h + 1);
+      if (!reduce.current) howl(1.3);
+    }, hitAt);
     const b = setTimeout(() => setPhase("out"), outAt);
     return () => { clearTimeout(a); clearTimeout(b); };
   }, [phase]);
@@ -155,6 +213,7 @@ export function SoundifiedLoader({ onDone }: { onDone: () => void }) {
         zIndex: 9999,
         overflow: "hidden",
         background: "#040407",
+        cursor: still ? "auto" : "none",
         animation: phase === "out" ? `sl-fade-out ${T.fade}ms ease forwards` : undefined,
       }}
     >
@@ -172,6 +231,10 @@ export function SoundifiedLoader({ onDone }: { onDone: () => void }) {
           animation: still ? undefined : "sl-wall-in 1.2s ease forwards",
         }}
       />
+
+      {/* ⚡ electric storm behind everything */}
+      {!still && <ElectricCanvas />}
+
       {/* neon vignette */}
       <div
         style={{
@@ -181,6 +244,9 @@ export function SoundifiedLoader({ onDone }: { onDone: () => void }) {
             "radial-gradient(ellipse at 50% 42%, rgba(10,12,24,.25) 0%, rgba(4,4,8,.78) 60%, rgba(2,2,4,.96) 100%)",
         }}
       />
+
+      {/* floating embers */}
+      {!still && <Embers />}
 
       {/* center stack */}
       <div
@@ -216,11 +282,34 @@ export function SoundifiedLoader({ onDone }: { onDone: () => void }) {
             <RevealBadge still={still} />
           )}
         </div>
+
+        {/* 🐺 howling mini wolf — howls on every click-in */}
+        {!still && <WolfHowl trigger={howlTick} />}
       </div>
+
+      {/* neon scanlines */}
+      {!still && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            mixBlendMode: "overlay",
+            opacity: 0.18,
+            backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,.25) 0 1px, transparent 1px 3px)",
+            animation: "sl-scan 8s linear infinite",
+          }}
+        />
+      )}
+
+      {/* 🐾 live paw-print cursor (topmost) */}
+      {!still && <PawCursor />}
     </div>
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Wordmark / Progress / Reveal                                       */
 /* ------------------------------------------------------------------ */
 
 function Wordmark({ still }: { still: boolean }) {
@@ -294,7 +383,7 @@ function ProgressBar({ progress, step }: { progress: number; step: string }) {
   );
 }
 
-/* checkmark → rip → music note → audio-wave shove → "Ready" */
+/* checkmark → rip → music note → audio-wave shove → "Ready" (+ spark burst) */
 function RevealBadge({ still }: { still: boolean }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
@@ -306,6 +395,8 @@ function RevealBadge({ still }: { still: boolean }) {
           animation: still ? undefined : "sl-badge-pop .5s cubic-bezier(.2,.8,.2,1) both",
         }}
       >
+        {!still && <SparkBurst />}
+
         {!still && (
           <div
             style={{
@@ -457,6 +548,325 @@ function RevealBadge({ still }: { still: boolean }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  FX LAYERS                                                          */
+/* ------------------------------------------------------------------ */
+
+/* ⚡ realistic-ish lightning storm on a canvas */
+function ElectricCanvas() {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const cv = ref.current;
+    if (!cv) return;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    let w = 0, h = 0;
+    const resize = () => {
+      w = cv.width = Math.floor(window.innerWidth * dpr);
+      h = cv.height = Math.floor(window.innerHeight * dpr);
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    type Bolt = { pts: number[][]; life: number; hue: number; width: number };
+    const bolts: Bolt[] = [];
+
+    const jagged = (x1: number, y1: number, x2: number, y2: number, n: number) => {
+      const pts: number[][] = [];
+      const off = 38 * dpr;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const jx = i === 0 || i === n ? 0 : (Math.random() - 0.5) * off;
+        const jy = i === 0 || i === n ? 0 : (Math.random() - 0.5) * off;
+        pts.push([x1 + (x2 - x1) * t + jx, y1 + (y2 - y1) * t + jy]);
+      }
+      return pts;
+    };
+
+    const spawn = () => {
+      const x1 = Math.random() * w;
+      const y1 = Math.random() * h * 0.25;
+      const x2 = x1 + (Math.random() - 0.5) * w * 0.6;
+      const y2 = y1 + h * (0.45 + Math.random() * 0.4);
+      const hue = 170 + Math.random() * 130; // cyan→purple
+      bolts.push({ pts: jagged(x1, y1, x2, y2, 12), life: 1, hue, width: (1.2 + Math.random() * 1.6) * dpr });
+      // occasional branch
+      if (Math.random() < 0.7) {
+        const b = bolts[bolts.length - 1].pts;
+        const k = 3 + Math.floor(Math.random() * (b.length - 5));
+        const [bx, by] = b[k];
+        bolts.push({
+          pts: jagged(bx, by, bx + (Math.random() - 0.5) * w * 0.3, by + h * 0.25 * Math.random(), 7),
+          life: 0.8, hue, width: dpr,
+        });
+      }
+    };
+
+    let raf = 0;
+    const frame = () => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      if (Math.random() < 0.05) spawn();
+
+      for (let i = bolts.length - 1; i >= 0; i--) {
+        const b = bolts[i];
+        b.life -= 0.07;
+        if (b.life <= 0) { bolts.splice(i, 1); continue; }
+        ctx.beginPath();
+        ctx.moveTo(b.pts[0][0], b.pts[0][1]);
+        for (let j = 1; j < b.pts.length; j++) ctx.lineTo(b.pts[j][0], b.pts[j][1]);
+        const a = Math.max(0, b.life);
+        ctx.shadowBlur = 16 * dpr;
+        ctx.shadowColor = `hsla(${b.hue},100%,70%,1)`;
+        ctx.strokeStyle = `hsla(${b.hue},100%,80%,${a})`;
+        ctx.lineWidth = b.width;
+        ctx.stroke();
+        // hot white core
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = `rgba(255,255,255,${a * 0.7})`;
+        ctx.lineWidth = b.width * 0.4;
+        ctx.stroke();
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    frame();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={ref}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.55, pointerEvents: "none", mixBlendMode: "screen" }}
+    />
+  );
+}
+
+/* floating embers drifting up */
+function Embers() {
+  const seeds = useRef(
+    Array.from({ length: 26 }, () => ({
+      left: Math.random() * 100,
+      size: 2 + Math.random() * 4,
+      dur: 6 + Math.random() * 8,
+      delay: -Math.random() * 12,
+      drift: (Math.random() - 0.5) * 60,
+      hue: Math.random() < 0.5 ? C.cyan : C.green,
+    })),
+  );
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+      {seeds.current.map((s, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            bottom: -10,
+            left: `${s.left}%`,
+            width: s.size,
+            height: s.size,
+            borderRadius: 999,
+            background: s.hue,
+            boxShadow: `0 0 8px ${s.hue}`,
+            ["--drift" as string]: `${s.drift}px`,
+            animation: `sl-ember ${s.dur}s linear ${s.delay}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* spark burst that erupts from the badge on reveal */
+function SparkBurst() {
+  const sparks = useRef(
+    Array.from({ length: 16 }, (_, i) => {
+      const ang = (i / 16) * Math.PI * 2 + Math.random() * 0.3;
+      const dist = 40 + Math.random() * 38;
+      return { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist, d: Math.random() * 0.12 };
+    }),
+  );
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      {sparks.current.map((s, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: 4,
+            height: 4,
+            marginLeft: -2,
+            marginTop: -2,
+            borderRadius: 999,
+            background: C.green,
+            boxShadow: `0 0 8px ${C.green}`,
+            ["--sx" as string]: `${s.x}px`,
+            ["--sy" as string]: `${s.y}px`,
+            animation: `sl-spark .7s ease-out ${0.25 + s.d}s forwards`,
+            opacity: 0,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* 🐺 mini wolf that pops, tilts up and howls (sound rings) on each trigger change */
+function WolfHowl({ trigger }: { trigger: number }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (!trigger) return;
+    setOn(false);
+    const r = requestAnimationFrame(() => setOn(true));
+    const t = setTimeout(() => setOn(false), 950);
+    return () => { cancelAnimationFrame(r); clearTimeout(t); };
+  }, [trigger]);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: 28,
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: 64,
+        height: 64,
+        pointerEvents: "none",
+      }}
+    >
+      {/* howl sound rings */}
+      {on && [0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 40,
+            width: 14,
+            height: 14,
+            borderRadius: 999,
+            border: `2px solid ${C.green}`,
+            opacity: 0,
+            animation: `sl-howlring .9s ease-out ${i * 0.14}s forwards`,
+          }}
+        />
+      ))}
+      {/* wolf silhouette (tilts up when howling) */}
+      <svg
+        viewBox="0 0 64 64"
+        width="64"
+        height="64"
+        style={{
+          transformOrigin: "50% 80%",
+          transform: on ? "translateY(-2px)" : "translateY(0)",
+          animation: on ? "sl-wolf-howl .95s ease-in-out" : undefined,
+          filter: "drop-shadow(0 0 6px rgba(61,255,160,.55))",
+        }}
+      >
+        <g fill={C.green}>
+          {/* body */}
+          <path d="M14 52 L18 36 L26 40 L38 40 L46 34 L50 52 Z" opacity="0.9" />
+          {/* head tilted up to the sky */}
+          <path d="M40 40 C40 30 44 22 52 16 L58 10 L54 20 L60 18 L52 26 C50 32 50 38 46 40 Z" />
+          {/* ear */}
+          <path d="M44 24 L47 16 L50 24 Z" />
+          {/* eye */}
+          <circle cx="47" cy="28" r="1.6" fill="#04140c" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+/* 🐾 custom paw cursor that follows the mouse and stamps fading paw prints */
+function PawCursor() {
+  const cursor = useRef<HTMLDivElement | null>(null);
+  const [paws, setPaws] = useState<{ id: number; x: number; y: number; rot: number }[]>([]);
+
+  useEffect(() => {
+    let last = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    let acc = 0;
+    let side = 1;
+    let id = 0;
+
+    const onMove = (e: PointerEvent | MouseEvent) => {
+      const x = (e as MouseEvent).clientX;
+      const y = (e as MouseEvent).clientY;
+      if (cursor.current) cursor.current.style.transform = `translate(${x}px, ${y}px)`;
+
+      const dx = x - last.x, dy = y - last.y;
+      acc += Math.hypot(dx, dy);
+      if (acc > 44) {
+        acc = 0;
+        const rot = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+        const perp = ((rot - 90) * Math.PI) / 180;
+        const off = 13 * side;
+        side *= -1;
+        const px = x + Math.cos(perp + Math.PI / 2) * off;
+        const py = y + Math.sin(perp + Math.PI / 2) * off;
+        const myId = id++;
+        setPaws((p) => [...p.slice(-14), { id: myId, x: px, y: py, rot }]);
+        window.setTimeout(() => setPaws((p) => p.filter((q) => q.id !== myId)), 950);
+      }
+      last = { x, y };
+    };
+
+    window.addEventListener("pointermove", onMove);
+    return () => window.removeEventListener("pointermove", onMove);
+  }, []);
+
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5 }}>
+      {paws.map((p) => (
+        <svg
+          key={p.id}
+          viewBox="0 0 24 24"
+          width="20"
+          height="20"
+          style={{
+            position: "absolute",
+            left: p.x,
+            top: p.y,
+            transform: `translate(-50%,-50%) rotate(${p.rot}deg)`,
+            animation: "sl-paw .95s ease-out forwards",
+          }}
+        >
+          <g fill={C.green}>
+            <ellipse cx="12" cy="15" rx="5" ry="4.2" />
+            <ellipse cx="6" cy="9" rx="2" ry="2.6" />
+            <ellipse cx="10" cy="6" rx="2" ry="2.8" />
+            <ellipse cx="14" cy="6" rx="2" ry="2.8" />
+            <ellipse cx="18" cy="9" rx="2" ry="2.6" />
+          </g>
+        </svg>
+      ))}
+      {/* glowing paw cursor */}
+      <div ref={cursor} style={{ position: "absolute", top: 0, left: 0, willChange: "transform" }}>
+        <svg viewBox="0 0 24 24" width="26" height="26" style={{ transform: "translate(-50%,-50%)", filter: `drop-shadow(0 0 6px ${C.green})` }}>
+          <g fill={C.green}>
+            <ellipse cx="12" cy="15" rx="5.2" ry="4.4" />
+            <ellipse cx="6" cy="9" rx="2.1" ry="2.7" />
+            <ellipse cx="10" cy="6" rx="2.1" ry="2.9" />
+            <ellipse cx="14" cy="6" rx="2.1" ry="2.9" />
+            <ellipse cx="18" cy="9" rx="2.1" ry="2.7" />
+          </g>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 
 const KEYFRAMES = `
 @keyframes sl-fade-out { to { opacity: 0; transform: scale(1.04); pointer-events: none; } }
@@ -476,4 +886,12 @@ const KEYFRAMES = `
 @keyframes sl-note-push { 0% { transform: translateX(0) rotate(0); opacity: 1; } 55% { transform: translateX(80px) rotate(14deg); opacity: 1; } 100% { transform: translateX(190px) rotate(24deg); opacity: 0; } }
 @keyframes sl-wave-push { 0% { transform: translateX(-80px) scaleX(.5); opacity: 0; } 30% { opacity: 1; } 60% { transform: translateX(4px) scaleX(1); opacity: 1; } 100% { transform: translateX(120px) scaleX(1); opacity: 0; } }
 @keyframes sl-eq { 0%,100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
+
+/* FX */
+@keyframes sl-scan { from { background-position: 0 0; } to { background-position: 0 60px; } }
+@keyframes sl-ember { 0% { transform: translate(0,0) scale(1); opacity: 0; } 12% { opacity: .9; } 100% { transform: translate(var(--drift), -100vh) scale(.4); opacity: 0; } }
+@keyframes sl-spark { 0% { transform: translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(var(--sx), var(--sy)) scale(.2); opacity: 0; } }
+@keyframes sl-howlring { 0% { transform: scale(.3); opacity: .9; } 100% { transform: scale(3.4); opacity: 0; } }
+@keyframes sl-wolf-howl { 0% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-3px) rotate(-8deg); } 60% { transform: translateY(-3px) rotate(-8deg); } 100% { transform: translateY(0) rotate(0); } }
+@keyframes sl-paw { 0% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--r,0)) scale(.4); } 18% { opacity: .85; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1); } }
 `;
