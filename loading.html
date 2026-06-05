@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Loading…</title>
+<style>
+  :root {
+    --green: #22c55e;
+    --green-glow: #4ade80;
+    --bg-0: #0b1120;
+    --bg-1: #0f172a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: radial-gradient(circle at 50% 40%, var(--bg-1), var(--bg-0) 70%);
+    overflow: hidden;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+
+  .loader {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 42px;
+  }
+
+  /* ---- stage holds the morphing icon ---- */
+  .stage {
+    position: relative;
+    width: 180px;
+    height: 180px;
+    display: grid;
+    place-items: center;
+  }
+
+  svg { overflow: visible; }
+
+  /* the icon group that the audio wave shoves aside */
+  .icon {
+    transform-origin: center;
+    animation: shove 4.2s ease-in-out infinite;
+  }
+
+  /* ===== 1. CHECKMARK draws in ===== */
+  .check {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 10;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 90;
+    stroke-dashoffset: 90;
+    filter: drop-shadow(0 0 8px var(--green-glow));
+    animation: draw-check 4.2s ease-in-out infinite;
+  }
+
+  /* ===== 2. The "rip" — a jagged tear flashes as it morphs ===== */
+  .rip {
+    fill: none;
+    stroke: #eafff1;
+    stroke-width: 3;
+    stroke-linecap: round;
+    opacity: 0;
+    animation: rip-flash 4.2s ease-in-out infinite;
+  }
+
+  /* ===== 3. MUSIC NOTE forms out of the tear ===== */
+  .note {
+    fill: var(--green);
+    transform-origin: center;
+    opacity: 0;
+    transform: scale(0.2) rotate(-25deg);
+    filter: drop-shadow(0 0 10px var(--green-glow));
+    animation: note-form 4.2s ease-in-out infinite;
+  }
+
+  /* ===== 4. AUDIO WAVE sweeps across and pushes the note away ===== */
+  .wave {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    pointer-events: none;
+    opacity: 0;
+    animation: wave-sweep 4.2s ease-in-out infinite;
+  }
+  .wave span {
+    display: block;
+    width: 6px;
+    border-radius: 6px;
+    background: linear-gradient(var(--green-glow), var(--green));
+    box-shadow: 0 0 10px var(--green-glow);
+    animation: bars 0.6s ease-in-out infinite;
+  }
+  .wave span:nth-child(1){ height: 18px; animation-delay: 0s; }
+  .wave span:nth-child(2){ height: 46px; animation-delay: .08s; }
+  .wave span:nth-child(3){ height: 78px; animation-delay: .16s; }
+  .wave span:nth-child(4){ height: 110px; animation-delay: .24s; }
+  .wave span:nth-child(5){ height: 78px; animation-delay: .16s; }
+  .wave span:nth-child(6){ height: 46px; animation-delay: .08s; }
+  .wave span:nth-child(7){ height: 18px; animation-delay: 0s; }
+
+  .label {
+    color: #cbd5e1;
+    letter-spacing: .35em;
+    font-size: 13px;
+    text-transform: uppercase;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .label::after { content: "…"; animation: dots 1.6s steps(4) infinite; }
+
+  /* ============ KEYFRAMES ============ */
+
+  /* checkmark visible 0–35%, then gone */
+  @keyframes draw-check {
+    0%   { stroke-dashoffset: 90; opacity: 1; }
+    18%  { stroke-dashoffset: 0;  opacity: 1; }
+    30%  { stroke-dashoffset: 0;  opacity: 1; }
+    38%  { opacity: 0; }          /* ripped apart */
+    100% { opacity: 0; }
+  }
+
+  /* the tear flashes right as the check disappears */
+  @keyframes rip-flash {
+    0%, 30%   { opacity: 0; transform: scaleY(0.4); }
+    34%       { opacity: 1; transform: scaleY(1); }
+    42%       { opacity: 0; transform: scaleY(1.3); }
+    100%      { opacity: 0; }
+  }
+
+  /* note grows out of the rip, holds, then gets shoved */
+  @keyframes note-form {
+    0%, 34%  { opacity: 0; transform: scale(0.2) rotate(-25deg); }
+    46%      { opacity: 1; transform: scale(1.1) rotate(0deg); }
+    52%      { opacity: 1; transform: scale(1) rotate(0deg); }
+    68%      { opacity: 1; transform: scale(1) rotate(0deg) translateX(0); }
+    /* pushed off to the right by the wave */
+    82%      { opacity: 1; transform: scale(0.9) rotate(12deg) translateX(220px); }
+    90%      { opacity: 0; transform: scale(0.8) rotate(18deg) translateX(320px); }
+    100%     { opacity: 0; }
+  }
+
+  /* the whole icon recoils slightly as the wave hits it */
+  @keyframes shove {
+    0%, 66%  { transform: translateX(0); }
+    72%      { transform: translateX(-10px); }   /* wind-up */
+    84%      { transform: translateX(40px); }
+    100%     { transform: translateX(0); }
+  }
+
+  /* wave enters from the left, sweeps through, exits right */
+  @keyframes wave-sweep {
+    0%, 60%  { opacity: 0; transform: translateX(-180px) scaleX(.6); }
+    66%      { opacity: 1; transform: translateX(-120px) scaleX(.8); }
+    78%      { opacity: 1; transform: translateX(0) scaleX(1); }
+    90%      { opacity: 1; transform: translateX(160px) scaleX(1); }
+    96%      { opacity: 0; transform: translateX(240px) scaleX(.7); }
+    100%     { opacity: 0; }
+  }
+
+  @keyframes bars {
+    0%, 100% { transform: scaleY(.5); }
+    50%      { transform: scaleY(1); }
+  }
+
+  @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+  @keyframes dots  { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} }
+
+  @media (prefers-reduced-motion: reduce) {
+    .icon, .check, .rip, .note, .wave, .wave span, .label { animation-duration: 0.001s; animation-iteration-count: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="loader" role="status" aria-label="Loading">
+    <div class="stage">
+      <svg class="icon" width="180" height="180" viewBox="0 0 120 120" aria-hidden="true">
+        <!-- 1. checkmark -->
+        <path class="check" d="M30 62 L52 84 L92 38" />
+
+        <!-- 2. rip / tear line -->
+        <path class="rip" d="M48 30 L56 44 L46 52 L58 64 L50 76 L60 88" />
+
+        <!-- 3. music note (eighth note) -->
+        <g class="note">
+          <rect x="64" y="22" width="6" height="56" rx="3" />
+          <path d="M70 22 C70 22 92 26 92 44 C92 50 84 52 80 48 C86 48 86 38 70 36 Z" />
+          <ellipse cx="56" cy="80" rx="14" ry="10" transform="rotate(-18 56 80)" />
+        </g>
+      </svg>
+
+      <!-- 4. audio wave that pushes the note away -->
+      <div class="wave" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="label">Loading</div>
+  </div>
+</body>
+</html>
