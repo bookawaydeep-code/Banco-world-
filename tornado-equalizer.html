@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tornado Equalizer — Banco World</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', Courier, monospace;
+    user-select: none;
+  }
+
+  #canvas { display: block; }
+
+  #ui {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .btn {
+    pointer-events: all;
+    background: rgba(10, 20, 40, 0.75);
+    border: 1px solid rgba(100, 180, 255, 0.35);
+    color: rgba(160, 220, 255, 0.9);
+    padding: 7px 18px;
+    border-radius: 24px;
+    cursor: pointer;
+    font: 13px 'Courier New', monospace;
+    letter-spacing: 0.06em;
+    backdrop-filter: blur(12px);
+    transition: background 0.25s, border-color 0.25s, color 0.25s;
+    outline: none;
+  }
+
+  .btn:hover {
+    background: rgba(20, 50, 100, 0.85);
+    border-color: rgba(100, 200, 255, 0.7);
+  }
+
+  .btn.active {
+    border-color: rgba(80, 255, 160, 0.6);
+    color: #80ffb0;
+  }
+
+  #footer {
+    position: fixed;
+    bottom: 12px;
+    left: 0; right: 0;
+    text-align: center;
+    color: rgba(80, 130, 80, 0.45);
+    font: 11px 'Courier New', monospace;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <button class="btn" id="micBtn">🎙 USE MICROPHONE</button>
+  <button class="btn active" id="demoBtn">🌪 DEMO MODE</button>
+</div>
+
+<div id="footer">BANCO WORLD  ·  STORM EQUALIZER SYSTEM  ·  F11 FULLSCREEN</div>
+
+<script>
+'use strict';
+
+/* ──────────────────────────────────────────────
+   CANVAS SETUP
+────────────────────────────────────────────── */
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+/* ──────────────────────────────────────────────
+   AUDIO ANALYZER
+────────────────────────────────────────────── */
+class AudioAnalyzer {
+  constructor() { this.analyser = null; this.data = null; this.active = false; }
+
+  async start() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ac     = new (window.AudioContext || window.webkitAudioContext)();
+      const src    = ac.createMediaStreamSource(stream);
+      this.analyser = ac.createAnalyser();
+      this.analyser.fftSize = 512;
+      this.analyser.smoothingTimeConstant = 0.82;
+      this.data = new Uint8Array(this.analyser.frequencyBinCount);
+      src.connect(this.analyser);
+      this.active = true;
+      return true;
+    } catch { return false; }
+  }
+
+  spectrum() {
+    if (!this.active) return null;
+    this.analyser.getByteFrequencyData(this.data);
+    return this.data;
+  }
+}
+
+/* ──────────────────────────────────────────────
+   DEMO SPECTRUM  — procedural audio illusion
+────────────────────────────────────────────── */
+function demoSpectrum(t) {
+  const N   = 128;
+  const out = new Float32Array(N);
+
+  // Bass kick every ~0.57 s
+  const kick = Math.max(0, Math.sin(t * 11.0) ** 16);
+
+  for (let i = 0; i < N; i++) {
+    const f = i / N;
+
+    // Layered oscillators at musically-spaced rates
+    let v = 0;
+    v += 0.40 * (0.5 + 0.5 * Math.sin(t * 1.10 + f * 4.2));
+    v += 0.25 * (0.5 + 0.5 * Math.sin(t * 2.73 + f * 7.8 + 1.1));
+    v += 0.18 * (0.5 + 0.5 * Math.sin(t * 5.30 + f * 13.0 + 2.4));
+    v += 0.10 * (0.5 + 0.5 * Math.sin(t * 0.38 + f * 2.3 + 0.7));
+    v += 0.07 * (0.5 + 0.5 * Math.sin(t * 8.10 + f * 22.0 + 3.1));
+
+    // Frequency envelope — heavier in lows/mids
+    const env = Math.pow(1 - f, 0.45) * 0.65 + 0.35;
+
+    // Inject kick into bass bands
+    if (f < 0.12) v = Math.max(v, kick * 0.9);
+
+    out[i] = Math.min(1, Math.max(0, v * env));
+  }
+  return out;
+}
+
+/* ──────────────────────────────────────────────
+   TORNADO GEOMETRY
+────────────────────────────────────────────── */
+function funnelW(progress) {
+  // 0 = apex (narrow), 1 = base (wide)
+  return 16 + Math.pow(progress, 1.55) * 210;
+}
+
+/* ──────────────────────────────────────────────
+   STAR FIELD (seeded, static)
+────────────────────────────────────────────── */
+const STARS = (() => {
+  const a = [];
+  let s = 42;
+  const rand = () => { s = (s * 1664525 + 1013904223) & 0x7fffffff; return s / 0x7fffffff; };
+  for (let i = 0; i < 200; i++) {
+    a.push({ rx: rand(), ry: rand() * 0.6, r: 0.4 + rand() * 1.1, alpha: 0.2 + rand() * 0.5 });
+  }
+  return a;
+})();
+
+/* ──────────────────────────────────────────────
+   PARTICLES
+────────────────────────────────────────────── */
+class Particle {
+  constructor() { this.alive = false; }
+
+  spawnWind(cx, topY, baseY) {
+    const p       = Math.random();
+    const y       = topY + p * (baseY - topY);
+    this.type     = 'wind';
+    this.angle    = Math.random() * Math.PI * 2;
+    this.radius   = funnelW(p) * (0.15 + Math.random() * 0.8);
+    this.x        = cx + Math.cos(this.angle) * this.radius;
+    this.y        = y;
+    this.angVel   = (0.025 + Math.random() * 0.04) * (Math.random() < 0.5 ? 1 : -1);
+    this.riseVel  = 0.6 + Math.random() * 2.2;
+    this.life     = 0.5 + Math.random() * 0.5;
+    this.decay    = 0.0045 + Math.random() * 0.007;
+    this.size     = 0.8 + Math.random() * 2.2;
+    this.hue      = 175 + Math.random() * 65;
+    this.alive    = true;
+  }
+
+  spawnDust(cx, baseY) {
+    this.type    = 'dust';
+    this.x       = cx + (Math.random() - 0.5) * 500;
+    this.y       = baseY + Math.random() * 25;
+    this.vx      = (Math.random() - 0.5) * 2.5;
+    this.vy      = -(0.15 + Math.random() * 0.7);
+    this.life    = 0.7 + Math.random() * 0.3;
+    this.decay   = 0.003 + Math.random() * 0.004;
+    this.size    = 3 + Math.random() * 9;
+    this.alive   = true;
+  }
+
+  spawnDebris(cx, topY, baseY) {
+    const p      = 0.45 + Math.random() * 0.45;
+    const fw     = funnelW(p);
+    this.type    = 'debris';
+    this.x       = cx + (Math.random() - 0.5) * fw;
+    this.y       = topY + p * (baseY - topY);
+    this.vx      = (Math.random() - 0.5) * 7;
+    this.vy      = -(1 + Math.random() * 3);
+    this.life    = 1;
+    this.decay   = 0.009 + Math.random() * 0.013;
+    this.size    = 2 + Math.random() * 5;
+    this.rot     = Math.random() * Math.PI * 2;
+    this.rotVel  = (Math.random() - 0.5) * 0.18;
+    this.alive   = true;
+  }
+
+  update(cx, topY, baseY, tRot) {
+    if (!this.alive) return;
+
+    if (this.type === 'wind') {
+      this.angle += this.angVel;
+      const prog   = Math.max(0, Math.min(1, (this.y - topY) / (baseY - topY)));
+      const target = funnelW(prog) * 0.7;
+      this.radius += (target - this.radius) * 0.012;
+      this.x       = cx + Math.cos(this.angle + tRot) * this.radius;
+      this.y      -= this.riseVel;
+      if (this.y < topY - 20) this.life = 0;
+    } else if (this.type === 'dust') {
+      this.x += this.vx;
+      this.y += this.vy;
+    } else {
+      this.x  += this.vx;
+      this.y  += this.vy;
+      this.vy += 0.09;
+      this.rot += this.rotVel;
+    }
+
+    this.life -= this.decay;
+    this.alive  = this.life > 0;
+  }
+
+  draw() {
+    if (!this.alive) return;
+    const a = Math.max(0, this.life);
+
+    if (this.type === 'wind') {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${this.hue},80%,78%,${(a * 0.65).toFixed(3)})`;
+      ctx.shadowBlur = 7;
+      ctx.shadowColor = `hsla(${this.hue},80%,80%,${(a * 0.5).toFixed(3)})`;
+      ctx.fill();
+    } else if (this.type === 'dust') {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(105,145,65,${(a * 0.22).toFixed(3)})`;
+      ctx.fill();
+    } else {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rot);
+      ctx.fillStyle = `rgba(95,80,45,${(a * 0.75).toFixed(3)})`;
+      ctx.fillRect(-this.size * 0.5, -this.size * 0.22, this.size, this.size * 0.44);
+      ctx.restore();
+    }
+  }
+}
+
+/* ──────────────────────────────────────────────
+   PARTICLE POOL
+────────────────────────────────────────────── */
+const POOL = Array.from({ length: 600 }, () => new Particle());
+
+function dead() { return POOL.find(p => !p.alive) || null; }
+
+function spawnBatch(cx, topY, baseY, n) {
+  for (let i = 0; i < n; i++) {
+    const p = dead(); if (!p) break;
+    const r = Math.random();
+    if      (r < 0.55) p.spawnWind(cx, topY, baseY);
+    else if (r < 0.80) p.spawnDust(cx, baseY);
+    else               p.spawnDebris(cx, topY, baseY);
+  }
+}
+
+/* ──────────────────────────────────────────────
+   STATE
+────────────────────────────────────────────── */
+let time     = 0;
+let tRot     = 0;       // tornado spin angle
+let swayX    = 0;       // gentle horizontal sway
+let swayTgt  = 0;
+let beatFlash  = 0;
+let prevLowAvg = 0;
+let demoMode   = true;
+let audioObj   = null;
+
+/* ──────────────────────────────────────────────
+   DRAW: BACKGROUND + STARS
+────────────────────────────────────────────── */
+function drawBg() {
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0,   '#010008');
+  sky.addColorStop(0.45,'#07001a');
+  sky.addColorStop(0.75,'#0c071e');
+  sky.addColorStop(1,   '#050e06');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  if (beatFlash > 0.01) {
+    ctx.fillStyle = `rgba(60,140,255,${(beatFlash * 0.09).toFixed(3)})`;
+    ctx.fillRect(0, 0, W, H);
+    beatFlash *= 0.82;
+  }
+
+  ctx.save();
+  STARS.forEach(s => {
+    const flicker = 0.7 + 0.3 * Math.sin(time * 1.3 + s.rx * 99);
+    ctx.beginPath();
+    ctx.arc(s.rx * W, s.ry * H, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,215,255,${(s.alpha * flicker).toFixed(3)})`;
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: GROUND PLANE
+────────────────────────────────────────────── */
+function drawGround(cx, baseY, lowEnergy) {
+  // Ground line glow
+  const gG = ctx.createLinearGradient(cx - 350, 0, cx + 350, 0);
+  gG.addColorStop(0,   'rgba(0,0,0,0)');
+  gG.addColorStop(0.5, `rgba(55,130,30,${0.18 + lowEnergy * 0.25})`);
+  gG.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = gG;
+  ctx.fillRect(cx - 350, baseY - 1, 700, 2);
+
+  // Radial ground glow
+  const r   = 230 + lowEnergy * 140;
+  const rGl = ctx.createRadialGradient(cx, baseY, 5, cx, baseY, r);
+  rGl.addColorStop(0,   `rgba(65,145,30,${0.22 + lowEnergy * 0.3})`);
+  rGl.addColorStop(0.5, `rgba(35,80,15,${0.07 + lowEnergy * 0.08})`);
+  rGl.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = rGl;
+  ctx.beginPath();
+  ctx.ellipse(cx, baseY, r, r * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: FUNNEL BODY (layered passes)
+────────────────────────────────────────────── */
+function funnelPath(cx, topY, tH, widthScale, turbScale) {
+  const N = 120;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const p    = i / N;
+    const y    = topY + p * tH;
+    const w    = funnelW(p) * widthScale;
+    const turb = turbScale > 0 ? Math.sin(p * 22 + time * 3.2) * w * turbScale * p : 0;
+    pts.push({ y, wL: -w + turb, wR: w + turb });
+  }
+  return pts;
+}
+
+function drawFunnelBody(cx, topY, tH) {
+  const layers = [
+    { ws: 1.18, ts: 0,     colorA: 'rgba(25,55,140,0.05)',  colorB: 'rgba(15,40,110,0.10)',  colorC: 'rgba(12,35,90,0.18)'  },
+    { ws: 1.00, ts: 0.009, colorA: 'rgba(55,120,220,0.04)', colorB: 'rgba(45,100,190,0.08)', colorC: 'rgba(38,85,165,0.14)' },
+    { ws: 0.65, ts: 0.020, colorA: 'rgba(130,200,255,0.05)',colorB: 'rgba(95,170,255,0.09)', colorC: 'rgba(75,145,230,0.17)' },
+  ];
+
+  layers.forEach(({ ws, ts, colorA, colorB, colorC }) => {
+    const pts = funnelPath(cx, topY, tH, ws, ts);
+
+    ctx.beginPath();
+    pts.forEach((pt, i) => {
+      if (i === 0) ctx.moveTo(cx + pt.wL, pt.y);
+      else         ctx.lineTo(cx + pt.wL, pt.y);
+    });
+    for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(cx + pts[i].wR, pts[i].y);
+    ctx.closePath();
+
+    const g = ctx.createLinearGradient(0, topY, 0, topY + tH);
+    g.addColorStop(0,   colorA);
+    g.addColorStop(0.5, colorB);
+    g.addColorStop(1,   colorC);
+    ctx.fillStyle = g;
+    ctx.fill();
+  });
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: FUNNEL GLOWING EDGES
+────────────────────────────────────────────── */
+function drawFunnelEdges(cx, topY, tH) {
+  const N = 120;
+
+  ['left', 'right'].forEach(side => {
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const p    = i / N;
+      const y    = topY + p * tH;
+      const w    = funnelW(p);
+      const turb = Math.sin(p * 20 + time * 2.8 + (side === 'right' ? Math.PI : 0)) * 4.5 * p;
+      const x    = cx + (side === 'left' ? -(w - turb) : (w + turb));
+      if (i === 0) ctx.moveTo(x, y);
+      else         ctx.lineTo(x, y);
+    }
+    ctx.lineWidth      = 2;
+    ctx.strokeStyle    = 'rgba(110,195,255,0.55)';
+    ctx.shadowBlur     = 28;
+    ctx.shadowColor    = 'rgba(80,180,255,0.9)';
+    ctx.stroke();
+  });
+
+  ctx.shadowBlur = 0;
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: INNER ENERGY SPIRAL
+────────────────────────────────────────────── */
+function drawInnerSpiral(cx, topY, tH, eq) {
+  const BANDS = 5;
+
+  for (let b = 0; b < BANDS; b++) {
+    const phase = (b / BANDS) * Math.PI * 2;
+    const N     = 130;
+
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const p     = i / N;
+      const y     = topY + p * tH;
+      const fw    = funnelW(p) * 0.72;
+      const eIdx  = Math.min(eq.length - 1, Math.floor(p * eq.length));
+      const ev    = eq[eIdx] || 0;
+      const angle = tRot * 2.2 + p * Math.PI * 11 + phase;
+      const r     = fw * (0.18 + ev * 0.6);
+      const x     = cx + Math.cos(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else         ctx.lineTo(x, y);
+    }
+
+    const hue = (180 + b * 28 + time * 22) % 360;
+    ctx.strokeStyle = `hsla(${hue},92%,74%,0.32)`;
+    ctx.lineWidth   = 1.5;
+    ctx.shadowBlur  = 14;
+    ctx.shadowColor = `hsla(${hue},92%,74%,0.6)`;
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: EQUALIZER BARS (radiating from funnel walls)
+────────────────────────────────────────────── */
+function drawEqBars(cx, topY, tH, eq) {
+  const N = Math.min(eq.length, 80);
+
+  for (let i = 0; i < N; i++) {
+    const p   = i / (N - 1);
+    const y   = topY + p * tH;
+    const fw  = funnelW(p);
+    const ev  = eq[i] || 0;
+
+    if (ev < 0.018) continue;
+
+    const barLen = ev * fw * 0.95;
+    const hue    = 215 - p * 160;      // cool blue → warm amber
+    const sat    = 70 + ev * 30;
+    const lit    = 44 + ev * 36;
+    const alpha  = 0.45 + ev * 0.55;
+
+    const turbL = Math.sin(p * 16 + time * 2.5) * 3.5 * p;
+    const turbR = Math.sin(p * 16 + time * 2.5 + Math.PI) * 3.5 * p;
+
+    ctx.lineWidth   = 1.5 + p * 2.5;
+    ctx.strokeStyle = `hsla(${hue},${sat}%,${lit}%,${alpha})`;
+    ctx.shadowBlur  = 9 + ev * 20;
+    ctx.shadowColor = `hsla(${hue},100%,72%,0.9)`;
+
+    ctx.beginPath();
+    ctx.moveTo(cx - fw + turbL,           y);
+    ctx.lineTo(cx - fw - barLen + turbL,  y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + fw + turbR,           y);
+    ctx.lineTo(cx + fw + barLen + turbR,  y);
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: FREQUENCY SPECTRUM (bottom HUD bar)
+────────────────────────────────────────────── */
+function drawSpectrumHUD(eq) {
+  const N     = eq.length;
+  const bW    = (W * 0.7) / N;
+  const maxH  = 55;
+  const startX = W * 0.15;
+  const baseY  = H - 14;
+
+  for (let i = 0; i < N; i++) {
+    const ev   = eq[i] || 0;
+    const bH   = ev * maxH;
+    const hue  = 215 - (i / N) * 160;
+    const alpha = 0.35 + ev * 0.55;
+    const x    = startX + i * bW;
+
+    ctx.fillStyle  = `hsla(${hue},85%,60%,${alpha})`;
+    ctx.shadowBlur = ev * 10;
+    ctx.shadowColor= `hsla(${hue},100%,70%,0.7)`;
+    ctx.fillRect(x, baseY - bH, Math.max(1, bW - 1), bH);
+  }
+
+  ctx.shadowBlur = 0;
+
+  // Divider line above spectrum
+  const line = ctx.createLinearGradient(W * 0.15, 0, W * 0.85, 0);
+  line.addColorStop(0,   'rgba(0,0,0,0)');
+  line.addColorStop(0.5, 'rgba(80,160,255,0.25)');
+  line.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = line;
+  ctx.fillRect(W * 0.15, baseY - maxH - 3, W * 0.7, 1);
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: LIGHTNING (random flashes)
+────────────────────────────────────────────── */
+function drawLightning(cx, topY, tH) {
+  if (Math.random() > 0.035) return;
+
+  const p0   = Math.random() * 0.85;
+  const y0   = topY + p0 * tH;
+  const fw   = funnelW(p0) * 0.45;
+  let   x    = cx + (Math.random() - 0.5) * fw;
+  let   y    = y0;
+  const dy   = (Math.random() - 0.5) * tH * 0.25;
+
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  for (let s = 0; s < 8; s++) {
+    x += (Math.random() - 0.5) * 35;
+    y += dy / 8 + (Math.random() - 0.5) * 10;
+    ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgba(190,220,255,0.92)';
+  ctx.lineWidth   = 1;
+  ctx.shadowBlur  = 45;
+  ctx.shadowColor = 'rgba(140,200,255,1)';
+  ctx.stroke();
+  ctx.shadowBlur  = 0;
+
+  beatFlash = Math.min(1, beatFlash + 0.45);
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: APEX CLOUD
+────────────────────────────────────────────── */
+function drawApex(cx, topY) {
+  const r  = 48;
+  const rG = ctx.createRadialGradient(cx, topY, 0, cx, topY, r);
+  rG.addColorStop(0,   'rgba(90,135,210,0.38)');
+  rG.addColorStop(0.5, 'rgba(55,90,165,0.12)');
+  rG.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = rG;
+  ctx.beginPath();
+  ctx.arc(cx, topY, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pulsing ring
+  const pulse = 0.5 + 0.5 * Math.sin(time * 4);
+  ctx.beginPath();
+  ctx.arc(cx, topY, 18 + pulse * 6, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(130,200,255,${0.4 + pulse * 0.3})`;
+  ctx.lineWidth   = 1.5;
+  ctx.shadowBlur  = 18;
+  ctx.shadowColor = 'rgba(100,180,255,0.8)';
+  ctx.stroke();
+  ctx.shadowBlur  = 0;
+}
+
+/* ──────────────────────────────────────────────
+   DRAW: HUD TITLE
+────────────────────────────────────────────── */
+function drawHUD(lowEnergy) {
+  ctx.save();
+  ctx.textAlign  = 'center';
+  ctx.shadowBlur = 22;
+  ctx.shadowColor= 'rgba(90,190,255,0.85)';
+  ctx.fillStyle  = `rgba(155,225,255,${0.45 + lowEnergy * 0.45})`;
+  ctx.font       = `bold 21px 'Courier New', monospace`;
+  ctx.letterSpacing = '0.1em';
+  ctx.fillText('⚡  TORNADO  EQUALIZER  ⚡', W / 2, 52);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/* ──────────────────────────────────────────────
+   BEAT DETECTION
+────────────────────────────────────────────── */
+function detectBeat(eq) {
+  const cutoff = Math.floor(eq.length * 0.12);
+  let lowSum = 0;
+  for (let i = 0; i < cutoff; i++) lowSum += eq[i];
+  const low = lowSum / cutoff;
+
+  if (prevLowAvg > 0.02 && low > prevLowAvg * 1.45 && low > 0.32) {
+    beatFlash = Math.min(1, beatFlash + 0.55);
+  }
+  prevLowAvg = prevLowAvg * 0.87 + low * 0.13;
+  return low;
+}
+
+/* ──────────────────────────────────────────────
+   EQUALIZER DATA SOURCE
+────────────────────────────────────────────── */
+function getEq() {
+  if (!demoMode && audioObj) {
+    const raw = audioObj.spectrum();
+    if (raw) return Array.from(raw).map(v => v / 255);
+  }
+  return Array.from(demoSpectrum(time));
+}
+
+/* ──────────────────────────────────────────────
+   MAIN LOOP
+────────────────────────────────────────────── */
+function frame() {
+  requestAnimationFrame(frame);
+  time += 0.016;
+  tRot += 0.019;
+
+  // Gentle horizontal sway (realistic tornado drift)
+  if (Math.random() < 0.003) swayTgt = (Math.random() - 0.5) * 45;
+  swayX += (swayTgt - swayX) * 0.007;
+
+  const cx    = W / 2 + swayX;
+  const tH    = Math.min(H * 0.72, 530);
+  const topY  = H * 0.5 - tH * 0.55;
+  const baseY = topY + tH;
+
+  const eq       = getEq();
+  const lowEnergy = detectBeat(eq);
+
+  // --- RENDER ORDER ---
+  drawBg();
+  drawGround(cx, baseY, lowEnergy);
+
+  // Particles (behind funnel body)
+  ctx.shadowBlur = 0;
+  let alive = 0;
+  POOL.forEach(p => { p.update(cx, topY, baseY, tRot); if (p.alive) { p.draw(); alive++; } });
+  ctx.shadowBlur = 0;
+  const needed = 320 - alive;
+  if (needed > 0) spawnBatch(cx, topY, baseY, Math.min(needed, 12));
+
+  drawFunnelBody(cx, topY, tH);
+  drawInnerSpiral(cx, topY, tH, eq);
+  drawFunnelEdges(cx, topY, tH);
+  drawEqBars(cx, topY, tH, eq);
+  drawLightning(cx, topY, tH);
+  drawApex(cx, topY);
+  drawSpectrumHUD(eq);
+  drawHUD(lowEnergy);
+}
+
+frame();
+
+/* ──────────────────────────────────────────────
+   CONTROLS
+────────────────────────────────────────────── */
+const micBtn  = document.getElementById('micBtn');
+const demoBtn = document.getElementById('demoBtn');
+
+micBtn.addEventListener('click', async () => {
+  if (!demoMode) return;
+  micBtn.textContent = '🎙 CONNECTING…';
+  micBtn.disabled    = true;
+
+  const a  = new AudioAnalyzer();
+  const ok = await a.start();
+
+  if (ok) {
+    audioObj          = a;
+    demoMode          = false;
+    micBtn.textContent = '🎙 MIC LIVE';
+    micBtn.classList.add('active');
+    demoBtn.classList.remove('active');
+    micBtn.disabled   = false;
+  } else {
+    micBtn.textContent = '🎙 NO ACCESS';
+    micBtn.disabled    = false;
+  }
+});
+
+demoBtn.addEventListener('click', () => {
+  demoMode = true;
+  micBtn.textContent = '🎙 USE MICROPHONE';
+  micBtn.classList.remove('active');
+  demoBtn.classList.add('active');
+  micBtn.disabled = false;
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'F11') { e.preventDefault(); document.documentElement.requestFullscreen?.(); }
+});
+</script>
+</body>
+</html>
